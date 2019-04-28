@@ -256,6 +256,14 @@ var outputValueHooks = {
 		}
 		document.getElementsByName("autoExposure")[0].checked=ival;
 		return(null);
+	},
+        connect: function(value) {
+	  	ival=parseInt(value);
+		if(ival) {			
+			$("#connect-button").text("disconnect");
+		} else {			
+			$("#connect-button").text("connect");
+		}
 	}
 };
 
@@ -413,7 +421,19 @@ function updateCycle() {
 		//check for changed values, do not send next image request if there is a setting change
 		if(Object.size(g_changed_values) > 0) {
 			
-			exchangeState("SetOptions", g_changed_values, loadImage, offline);
+			exchangeState("SetOptions", g_changed_values, function (data) {
+				$.each(data, function (key, value) {
+					function id(value) {
+						return value;
+					};
+					var val=(outputValueHooks[key] || id)(value);
+					if(val!=null)
+						$("#" + key).text(val);
+				});
+				
+				loadImage();
+			
+			}, offline);
 			g_changed_values=new Object();
 			
 		} else {

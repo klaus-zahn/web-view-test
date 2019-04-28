@@ -8,12 +8,15 @@
 
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <thread>
 
 #include "camera.h"
 #include "image_processing.h"
-
+#include "game.h"
 
 #define BUFFER_SIZE (1024)
+
+const char PORT[] = "/dev/ttyUSB0";
 
 
 /*! @brief File permissions of the server socket file node. */
@@ -30,6 +33,8 @@
 /* settings that can be changed over the web */
 struct WEB_SETTINGS {
 	int exposure_time; // [us]
+        int autoExposure;
+	int connect;
 };
 
 enum HTML_HEADER_TYPE {
@@ -37,6 +42,12 @@ enum HTML_HEADER_TYPE {
 	HEADER_IMAGE_BMP,
         HEADER_IMAGE_JPG
 };
+
+enum ROBOT_ACTION {
+  NO_ACTION, CONNECT, MOVE, DISCONNECT
+};
+
+class RobotController;   
 
 
 class CIPC {
@@ -73,6 +84,7 @@ private:
 	/*! @brief Strips whitespace from the beginning and the end of a string and returns the new beginning of the string. Be advised, that the original string gets mangled! */
 	char* strtrim(char* str);
 	
+        void robotThread(void);
 	
 	CCamera& m_camera;
         CImageProcessor& m_img_process;
@@ -85,6 +97,16 @@ private:
 	
 	bool m_bInit;
 	WEB_SETTINGS m_web_settings;
+                
+        RobotController* m_robot_ctrl;  
+
+	std::thread m_robot_thread;
+	volatile bool m_thread_running;
+	volatile ROBOT_ACTION m_next_action;
+
+	CGame m_game;
+
+	std::vector<std::string> m_occupied_fields;
 };
 
 

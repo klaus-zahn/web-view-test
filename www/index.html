@@ -25,7 +25,8 @@
 		<!--
 		var inputValues = {
 			exposureTime: 10,
-			colorType: "raw"
+			colorType: "raw",
+                        connect: 0
 		};
 		
 		$(function () {
@@ -173,6 +174,31 @@
 		</div>
 	</div>
 
-
+        <div id="info-box" class="big-box">
+		<h3>
+			<span lang="de">Roboter Kontroller</span>
+			<span lang="en">Robot controller</span>
+		</h3>
+		<div class="split">
+			<div>
+				<div>
+					<p>
+						<button style="margin-left: 30px" type="submit" id="connect-button" name="connect" onclick="settingChanged(this.name, 1)">connect</button>
+					</p>
+					<p>
+						<button style="margin-left: 30px" type="submit" name="move" onclick="settingChanged(this.name, 1)">move</button>
+					</p>				
+				</div>
+			</div>
+			<div>
+				<div>
+					<p>
+						<button style="margin-left: 30px" type="submit" name="reset" onclick="settingChanged(this.name, 1)">reset</button>
+					</p>					
+					
+				</div>
+			</div>
+		</div>
+	</div>
 </body>
 </html>

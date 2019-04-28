@@ -45,7 +45,7 @@ LIBS_target := oscar/library/libosc_target
 ##--------------------------------------------------------------------------
 
 # Generic flags for the C/CPP compiler.
-CFLAGS := -c -Wall -Ioscar/include
+CFLAGS := -c -std=c++11 -fsigned-char -Wall -Ioscar/include
 
 ifeq '$(CONFIG_USE_OPENCV)' 'y'
 -include MakeOpenCV.mk

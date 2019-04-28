@@ -20,8 +20,7 @@ using namespace std;
 #include <errno.h>
 #include <unistd.h>
 
-
-
+#include "RobotController.h"
 
 #ifdef OSC_HOST
 #define HTTP_DIR "/var/www/"
@@ -32,11 +31,15 @@ using namespace std;
 
 
 
+
 CIPC::CIPC(CCamera& camera,CImageProcessor& img_process) : m_camera(camera), m_img_process(img_process), m_bInit(false) {
 	img_count=0;
 }
 
 CIPC::~CIPC() {
+        if(m_robot_ctrl) {
+            m_robot_ctrl->exit();
+        }
 }
 
 
@@ -74,6 +77,10 @@ OSC_ERR CIPC::Init() {
 	
 	/* init the web-settings */
 	m_web_settings.exposure_time=INIT_EXPOSURE_TIME;
+        m_web_settings.autoExposure = 0;
+	m_web_settings.connect = 0;
+	
+	m_robot_ctrl = RobotController::getInstance();  
 	
 	m_bInit=true;
 	return(SUCCESS);
@@ -193,11 +200,45 @@ void CIPC::ProcessRequest(char* request) {
 						m_camera.setColorType(ColorType_debayered);
 				} else if(strcmp(key, "perspective") == 0) {
 					m_camera.setPerspective(atoi(value));
-				} 
+				} else if(strcmp(key, "connect") == 0) {
+				        if(!m_thread_running) {
+				                m_thread_running = true;
+				                m_robot_thread = thread(&CIPC::robotThread, this);
+				        }
+                                        if(m_web_settings.connect == 0) {
+                                              m_next_action = CONNECT;
+                                              m_web_settings.connect = 1;
+
+                                        } else {
+                                              m_next_action = DISCONNECT;
+                                              m_web_settings.connect = 0;
+                                        }
+                                } else if(strcmp(key, "move") == 0) {
+                                        if(m_thread_running) {
+                                          OscLog(NOTICE, "the following fields are occupied:\n");
+                                              for(unsigned int i0 = 0; i0 < m_occupied_fields.size(); i0++) {
+                                                  m_game.setField(m_occupied_fields[i0]);
+                                                  OscLog(NOTICE, "%s, ", m_occupied_fields[i0].c_str());
+                                              }
+                                              OscLog(NOTICE, "\n");
+                                              m_next_action = MOVE;
+                                        } else {
+                                              OscLog(ERROR, "robot thread is not running");
+                                        }
+                                } else if(strcmp(key, "reset") == 0) {
+                                        m_game.reset_game();
+                                }
 			} else {
 				*request=0;
 			}
 		}
+                const char * pEnumBuf = NULL;
+
+		WriteHtmlHeader(HEADER_TEXT_PLAIN);
+		WriteArgument("colorType", pEnumBuf);
+                WriteArgument("perspective", m_camera.getPerspective());
+                WriteArgument("autoExposure", m_web_settings.autoExposure);
+                WriteArgument("connect", m_robot_ctrl ? m_robot_ctrl->isConnected() : false);
 		
 	} else if (strcmp(header, "GetImageInfo") == 0) {
 		const char * pEnumBuf = NULL;
@@ -218,7 +259,8 @@ void CIPC::ProcessRequest(char* request) {
 		}
 		WriteArgument("colorType", pEnumBuf);
 		WriteArgument("perspective", m_camera.getPerspective());
-		WriteArgument("autoExposure", m_camera.getAutoExposure() ? 1 : 0);                
+		WriteArgument("autoExposure", m_web_settings.autoExposure);
+		WriteArgument("connect", m_robot_ctrl ? m_robot_ctrl->isConnected() : false);               
 		
 	} else if (strncmp(header, "GetImage", 8) == 0) {
 		
@@ -353,6 +395,64 @@ int CIPC::IpcWrite(const void* buf, size_t count) {
 		m_fd=-1;
 	}
 	return(ret);
+}
+
+void CIPC::robotThread(void)
+{
+  while(m_thread_running) {
+
+    if(m_next_action == CONNECT) {
+        m_next_action = NO_ACTION;
+        if (m_robot_ctrl->init(PORT)) {
+            OscLog(ERROR, "connecting to '%s' failed!\n", PORT);
+        } else {
+            OscLog(NOTICE, "connect to '%s' successful\n", PORT);
+        }
+    } else if(m_next_action == MOVE) {
+        m_next_action = NO_ACTION;
+        string next_field = m_game.getNextField();
+        int num_move = m_game.getMove();
+
+        OscLog(NOTICE, "move %d, to field %s\n", num_move, next_field.c_str());
+
+        if(next_field.size() > 0 && num_move <= 5) {
+
+            m_robot_ctrl->move2Pos((robotPosition_t) (6+num_move));//we start with 1 -> RIGHT_STORE_1 = 7
+            m_robot_ctrl->pick();
+
+            if(next_field == "A1") {
+              m_robot_ctrl->move2Pos(CELL_A1);
+            } else if(next_field == "A2") {
+              m_robot_ctrl->move2Pos(CELL_A2);
+            } else if(next_field == "A3") {
+              m_robot_ctrl->move2Pos(CELL_A3);
+            } else if(next_field == "B1") {
+              m_robot_ctrl->move2Pos(CELL_B1);
+            } else if(next_field == "B2") {
+              m_robot_ctrl->move2Pos(CELL_B2);
+            } else if(next_field == "B3") {
+              m_robot_ctrl->move2Pos(CELL_B3);
+            } else if(next_field == "C1") {
+              m_robot_ctrl->move2Pos(CELL_C1);
+            } else if(next_field == "C2") {
+              m_robot_ctrl->move2Pos(CELL_C2);
+            } else if(next_field == "C3") {
+              m_robot_ctrl->move2Pos(CELL_C3);
+            }
+            m_robot_ctrl->place();
+
+            m_robot_ctrl->move2Pos(PARKING_1);
+        }
+
+    } else if(m_next_action == DISCONNECT) {
+        m_next_action = NO_ACTION;
+        m_robot_ctrl->exit();
+        OscLog(NOTICE, "disconnected from '%s' successful\n", PORT);
+        m_web_settings.connect = 0;
+    }
+
+    this_thread::sleep_for(chrono::milliseconds(100));
+  }
 }
 
 
