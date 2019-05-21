@@ -105,8 +105,6 @@ private:
 	volatile ROBOT_ACTION m_next_action;
 
 	CGame m_game;
-
-	std::vector<std::string> m_occupied_fields;
 };
 
 

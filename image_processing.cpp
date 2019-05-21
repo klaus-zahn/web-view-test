@@ -35,6 +35,11 @@ int CImageProcessor::DoProcess(cv::Mat* image) {
       //  cv::imwrite("dx.png", *m_proc_image[0]);
       //  cv::imwrite("dy.png", *m_proc_image[1]);
 
+      	m_occupied_fields.clear();
+      	
+      	m_occupied_fields.push_back("A1");
+      	m_occupied_fields.push_back("B1");
+
 	return(SUCCESS);
 }
 

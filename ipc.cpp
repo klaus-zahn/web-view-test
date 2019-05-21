@@ -32,7 +32,9 @@ using namespace std;
 
 
 
-CIPC::CIPC(CCamera& camera,CImageProcessor& img_process) : m_camera(camera), m_img_process(img_process), m_bInit(false) {
+CIPC::CIPC(CCamera& camera,CImageProcessor& img_process) : 
+        m_camera(camera), m_img_process(img_process), m_bInit(false), m_thread_running(false)
+{
 	img_count=0;
 }
 
@@ -77,7 +79,7 @@ OSC_ERR CIPC::Init() {
 	
 	/* init the web-settings */
 	m_web_settings.exposure_time=INIT_EXPOSURE_TIME;
-        m_web_settings.autoExposure = 0;
+        m_web_settings.autoExposure = 1;
 	m_web_settings.connect = 0;
 	
 	m_robot_ctrl = RobotController::getInstance();  
@@ -185,7 +187,13 @@ void CIPC::ProcessRequest(char* request) {
 			if(ReadArgument(&request, &key, &value)==SUCCESS) {
 			
 				if(strcmp(key, "autoExposure") == 0) {
-					OscCamSetShutterWidth(0);
+                                        if (strcmp(value, "1") == 0) {
+                                            OscCamSetShutterWidth(0);
+                                            m_web_settings.autoExposure = 1;
+                                        } else {
+                                            OscCamSetShutterWidth(m_web_settings.exposure_time);
+                                            m_web_settings.autoExposure = 0;
+                                        }
 				} else if (strcmp(key, "exposureTime") == 0) {
 					m_web_settings.exposure_time = strtol(value, NULL, 10)*1000;
 					OscCamSetShutterWidth(m_web_settings.exposure_time);
@@ -201,8 +209,8 @@ void CIPC::ProcessRequest(char* request) {
 				} else if(strcmp(key, "perspective") == 0) {
 					m_camera.setPerspective(atoi(value));
 				} else if(strcmp(key, "connect") == 0) {
-				        if(!m_thread_running) {
-				                m_thread_running = true;
+                                        if(!m_thread_running) {
+                                                m_thread_running = true;
 				                m_robot_thread = thread(&CIPC::robotThread, this);
 				        }
                                         if(m_web_settings.connect == 0) {
@@ -216,9 +224,10 @@ void CIPC::ProcessRequest(char* request) {
                                 } else if(strcmp(key, "move") == 0) {
                                         if(m_thread_running) {
                                           OscLog(NOTICE, "the following fields are occupied:\n");
-                                              for(unsigned int i0 = 0; i0 < m_occupied_fields.size(); i0++) {
-                                                  m_game.setField(m_occupied_fields[i0]);
-                                                  OscLog(NOTICE, "%s, ", m_occupied_fields[i0].c_str());
+                                              std::vector<std::string> occupied_fields = m_img_process.GetOccupiedFields();
+                                              for(unsigned int i0 = 0; i0 < occupied_fields.size(); i0++) {
+                                                  m_game.setField(occupied_fields[i0]);
+                                                  OscLog(NOTICE, "%s, ", occupied_fields[i0].c_str());
                                               }
                                               OscLog(NOTICE, "\n");
                                               m_next_action = MOVE;
@@ -238,8 +247,7 @@ void CIPC::ProcessRequest(char* request) {
 		WriteArgument("colorType", pEnumBuf);
                 WriteArgument("perspective", m_camera.getPerspective());
                 WriteArgument("autoExposure", m_web_settings.autoExposure);
-                WriteArgument("connect", m_robot_ctrl ? m_robot_ctrl->isConnected() : false);
-		
+                WriteArgument("connect", m_web_settings.connect);                            		
 	} else if (strcmp(header, "GetImageInfo") == 0) {
 		const char * pEnumBuf = NULL;
 		
@@ -260,7 +268,7 @@ void CIPC::ProcessRequest(char* request) {
 		WriteArgument("colorType", pEnumBuf);
 		WriteArgument("perspective", m_camera.getPerspective());
 		WriteArgument("autoExposure", m_web_settings.autoExposure);
-		WriteArgument("connect", m_robot_ctrl ? m_robot_ctrl->isConnected() : false);               
+		WriteArgument("connect", m_web_settings.connect);               
 		
 	} else if (strncmp(header, "GetImage", 8) == 0) {
 		
@@ -399,6 +407,8 @@ int CIPC::IpcWrite(const void* buf, size_t count) {
 
 void CIPC::robotThread(void)
 {
+  OscLog(NOTICE, "robotThread started\n", PORT);
+            
   while(m_thread_running) {
 
     if(m_next_action == CONNECT) {
@@ -445,10 +455,10 @@ void CIPC::robotThread(void)
         }
 
     } else if(m_next_action == DISCONNECT) {
+        OscLog(NOTICE, "try disconnect\n", PORT);
         m_next_action = NO_ACTION;
         m_robot_ctrl->exit();
-        OscLog(NOTICE, "disconnected from '%s' successful\n", PORT);
-        m_web_settings.connect = 0;
+        OscLog(NOTICE, "disconnected from '%s' successful\n", PORT);        
     }
 
     this_thread::sleep_for(chrono::milliseconds(100));

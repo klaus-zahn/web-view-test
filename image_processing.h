@@ -21,8 +21,11 @@ public:
 
 	cv::Mat* GetProcImage(uint32 i);
 
+	std::vector<std::string> GetOccupiedFields() {return m_occupied_fields;}
 private:
 	cv::Mat* m_proc_image[3];/* we have three processing images for visualization available */
+	
+	std::vector<std::string> m_occupied_fields;
 };
 
 
